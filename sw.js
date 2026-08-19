@@ -1,14 +1,14 @@
-// sw.js - Service Worker pour RecapVire
 const CACHE_NAME = 'recapvire-v1';
 const urlsToCache = [
-  '/RecapVire/',
-  '/RecapVire/index.html',
-  '/RecapVire/manifest.json',
-  '/RecapVire/logo.png',
+  '.',
+  'index.html',
+  'manifest.json',
+  'logo.png',
   'https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js'
 ];
+// Le reste du fichier ne change pas.
 
 // Installation : mise en cache des ressources
 self.addEventListener('install', event => {
