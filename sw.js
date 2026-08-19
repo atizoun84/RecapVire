@@ -1,10 +1,10 @@
 // sw.js - Service Worker pour RecapVire
 const CACHE_NAME = 'recapvire-v1';
 const urlsToCache = [
-  '/',
-  '/index.html', // adapter si le nom du fichier HTML est différent
-  '/manifest.json',
-  '/logo.png',
+  '/RecapVire/',
+  '/RecapVire/index.html',
+  '/RecapVire/manifest.json',
+  '/RecapVire/logo.png',
   'https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js'

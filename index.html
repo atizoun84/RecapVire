@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#075E54">
 <title>RecapVire — Suivi des virements de salaires</title>
-<!-- Lien vers le manifest PWA -->
-<link rel="manifest" href="manifest.json">
+<!-- Lien vers le manifest PWA avec chemin absolu -->
+<link rel="manifest" href="/RecapVire/manifest.json">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
@@ -973,11 +973,11 @@ async function init() {
   // Premier rendu
   render();
 
-  // Gestion PWA
+  // Gestion PWA - Enregistrement du Service Worker avec chemin relatif (fonctionne en local et en production)
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
-      .then(() => console.log('SW enregistré'))
-      .catch(err => console.log('Erreur SW', err));
+      .then(() => console.log('SW enregistré avec succès'))
+      .catch(err => console.log('Erreur d\'enregistrement du SW :', err));
   }
 
   let deferredPrompt;
