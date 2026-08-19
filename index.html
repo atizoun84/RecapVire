@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#075E54">
+<title>RecapVire — Suivi des virements de salaires</title>
+<!-- Lien vers le manifest PWA -->
+<link rel="manifest" href="manifest.json">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  :root{
+    --wa-dark:#075E54;
+    --wa-teal:#128C7E;
+    --wa-green:#25D366;
+    --wa-light-green:#DCF8C6;
+    --wa-bg:#ECE5DD;
+    --wa-panel:#FFFFFF;
+    --wa-blue-tick:#34B7F1;
+    --wa-red:#DC3545;
+    --wa-gray:#667781;
+  }
+  *{-webkit-tap-highlight-color:transparent;}
+  body{
+    background:var(--wa-bg);
+    background-image:
+      radial-gradient(circle at 10% 10%, rgba(0,0,0,0.02) 0, transparent 40%),
+      radial-gradient(circle at 90% 30%, rgba(0,0,0,0.02) 0, transparent 40%),
+      radial-gradient(circle at 30% 80%, rgba(0,0,0,0.02) 0, transparent 40%);
+    min-height:100vh;
+    font-family:"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color:#111b21;
+    padding-bottom:100px;
+  }
+  .app-header{
+    background:var(--wa-dark);
+    color:#fff;
+    padding:14px 16px;
+    position:sticky;
+    top:0;
+    z-index:1000;
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
+  }
+  .app-header .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .app-header .brand-icon{
+    width:42px;height:42px;
+    border-radius:50%;
+    background:var(--wa-green);
+    display:flex;align-items:center;justify-content:center;
+    font-size:1.3rem;
+    color:#fff;
+    flex-shrink:0;
+  }
+  .app-header h1{
+    font-size:1.05rem;
+    font-weight:700;
+    margin:0;
+    line-height:1.2;
+  }
+  .app-header small{
+    color:#d6f3ec;
+    font-size:0.75rem;
+  }
+  .app-header .header-sub{
+    font-size:0.7rem;
+    opacity:0.85;
+    margin-top:2px;
+    font-weight:400;
+    letter-spacing:0.3px;
+    border-top:1px solid rgba(255,255,255,0.15);
+    padding-top:4px;
+  }
+  .container-app{
+    max-width:640px;
+    margin:0 auto;
+    padding:14px 12px 0 12px;
+  }
+  .month-bar{
+    background:var(--wa-panel);
+    border-radius:14px;
+    padding:12px 14px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+    margin-bottom:14px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .month-bar .top-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .month-bar .options-row{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .month-bar .options-row select,
+  .month-bar .options-row input{
+    flex:1 1 auto;
+    min-width:120px;
+  }
+  .month-bar .options-row .designation-wrap{
+    flex:1 1 auto;
+    min-width:130px;
+  }
+  .month-bar label{
+    font-weight:600;
+    color:var(--wa-teal);
+    font-size:0.85rem;
+    margin-bottom:0;
+  }
+  .month-bar input[type="month"]{
+    border:1px solid #d1d7db;
+    border-radius:8px;
+    padding:6px 10px;
+  }
+  .stat-pill{
+    font-size:0.75rem;
+    font-weight:600;
+    padding:4px 10px;
+    border-radius:20px;
+  }
+  .stat-pill.ok{background:var(--wa-light-green);color:#075E54;}
+  .stat-pill.pending{background:#ffe1e1;color:#b02a37;}
+
+  .bank-card{
+    background:var(--wa-panel);
+    border-radius:12px;
+    box-shadow:0 1px 2px rgba(0,0,0,0.10);
+    margin-bottom:8px;
+    padding:10px 12px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    transition:background .15s ease;
+  }
+  .bank-card.checked{
+    background:var(--wa-light-green);
+  }
+  .bank-card .form-check-input{
+    width:1.35em;height:1.35em;
+    margin-top:0;
+    flex-shrink:0;
+  }
+  .bank-card .form-check-input:checked{
+    background-color:var(--wa-green);
+    border-color:var(--wa-green);
+  }
+  .bank-name{
+    font-weight:600;
+    font-size:0.98rem;
+    flex-grow:1;
+    color:#111b21;
+  }
+  .bank-status-icon{
+    font-size:1.05rem;
+  }
+  .bank-status-icon.ok{color:var(--wa-green);}
+  .bank-status-icon.pending{color:var(--wa-red);}
+  .bank-date-input{
+    border:1px solid #d1d7db;
+    border-radius:8px;
+    padding:3px 6px;
+    font-size:0.78rem;
+    width:132px;
+  }
+  .bank-date-input:disabled{
+    background:#f0f2f2;
+    color:#8696a0;
+  }
+  .remove-bank-btn{
+    background:none;
+    border:none;
+    color:#c94b4b;
+    font-size:1.05rem;
+    padding:2px 4px;
+    line-height:1;
+    opacity:0.65;
+  }
+  .remove-bank-btn:hover{opacity:1;}
+
+  .section-title{
+    font-size:0.8rem;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--wa-gray);
+    font-weight:700;
+    margin:18px 0 8px 4px;
+  }
+
+  .add-bank-card{
+    background:var(--wa-panel);
+    border-radius:12px;
+    box-shadow:0 1px 2px rgba(0,0,0,0.10);
+    padding:12px;
+    display:flex;
+    gap:8px;
+    margin-bottom:6px;
+  }
+  .add-bank-card input{
+    border:1px solid #d1d7db;
+    border-radius:8px;
+  }
+  .btn-wa-green{
+    background:var(--wa-green);
+    border-color:var(--wa-green);
+    color:#fff;
+    font-weight:600;
+  }
+  .btn-wa-green:hover{background:#1fbd5a;border-color:#1fbd5a;color:#fff;}
+  .btn-wa-teal{
+    background:var(--wa-teal);
+    border-color:var(--wa-teal);
+    color:#fff;
+  }
+  .btn-wa-teal:hover{background:#0e7368;border-color:#0e7368;color:#fff;}
+
+  .fab-whatsapp{
+    position:fixed;
+    left:0;right:0;
+    bottom:0;
+    z-index:1000;
+    background:linear-gradient(0deg, var(--wa-bg) 60%, transparent);
+    padding:16px 12px 18px 12px;
+  }
+  .fab-whatsapp .btn{
+    max-width:640px;
+    margin:0 auto;
+    display:flex;
+    width:100%;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    padding:13px;
+    border-radius:14px;
+    font-size:1rem;
+    font-weight:700;
+    box-shadow:0 4px 14px rgba(7,94,84,0.35);
+  }
+
+  footer.designer{
+    max-width:640px;
+    margin:22px auto 0 auto;
+    padding:14px 16px 6px 16px;
+    text-align:center;
+    color:var(--wa-gray);
+    font-size:0.75rem;
+    border-top:1px dashed #c9d1d3;
+  }
+  footer.designer .designer-name{
+    color:var(--wa-dark);
+    font-weight:700;
+    font-size:0.82rem;
+  }
+  footer.designer .reset-row{
+    margin-top:12px;
+    display:flex;
+    justify-content:center;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+
+  .empty-hint{
+    text-align:center;
+    color:var(--wa-gray);
+    font-size:0.85rem;
+    padding:20px 10px;
+  }
+
+  #toastZone{
+    position:fixed;
+    top:70px;left:0;right:0;
+    display:flex;justify-content:center;
+    z-index:2000;
+    pointer-events:none;
+  }
+  .app-toast{
+    background:#111b21;
+    color:#fff;
+    padding:8px 16px;
+    border-radius:20px;
+    font-size:0.8rem;
+    box-shadow:0 3px 10px rgba(0,0,0,0.3);
+  }
+
+  /* Bouton d'installation PWA flottant */
+  #installBtn {
+    display: none;
+    background: var(--wa-teal);
+    border-color: var(--wa-teal);
+    color: #fff;
+    border-radius: 50px;
+    padding: 10px 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  #installBtn:hover {
+    background: #0e7368;
+    border-color: #0e7368;
+    color: #fff;
+    transform: scale(1.05);
+  }
+  #installFloat {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    z-index: 1050;
+  }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="container-app px-0">
+    <div class="brand">
+      <div class="brand-icon"><i class="bi bi-bank2"></i></div>
+      <div>
+        <h1>RecapVire</h1>
+        <small>Suivi des virements de salaires — ACDPE / FE</small>
+        <div class="header-sub"><i class="bi bi-gift"></i> Don de Prof AMOUSSOU Atizoun Plateny à la communauté des enseignants de Bénin</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toastZone"></div>
+
+<div class="container-app">
+
+  <div class="month-bar">
+    <div class="top-row">
+      <label for="monthPicker"><i class="bi bi-calendar3"></i> Mois :</label>
+      <input type="month" id="monthPicker" class="form-control form-control-sm" style="width:auto;">
+      <span id="statOk" class="stat-pill ok">0 viré(s)</span>
+      <span id="statPending" class="stat-pill pending">0 en attente</span>
+    </div>
+    <div class="options-row">
+      <select id="statutAgents" class="form-select form-select-sm">
+        <option value="">Statut agents...</option>
+        <option value="ACDPE/FE">ACDPE / FE</option>
+        <option value="AME">AME</option>
+      </select>
+      <select id="typePaiement" class="form-select form-select-sm">
+        <option value="">Type paiement...</option>
+        <option value="SALAIRE">SALAIRE</option>
+        <option value="PRIME">PRIME</option>
+        <option value="AUTRE">AUTRE</option>
+      </select>
+      <div class="designation-wrap" id="designationContainer" style="display:none;">
+        <input type="text" id="designationInput" class="form-control form-control-sm" placeholder="Désignation">
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Banques</div>
+  <div id="bankList"></div>
+  <div id="emptyHint" class="empty-hint d-none">Aucune banque enregistrée. Ajoutez-en une ci-dessous.</div>
+
+  <div class="section-title">Ajouter une banque</div>
+  <div class="add-bank-card">
+    <input type="text" id="newBankName" class="form-control" placeholder="Nom de la banque (ex: FinBank)">
+    <button class="btn btn-wa-teal" id="addBankBtn"><i class="bi bi-plus-lg"></i></button>
+  </div>
+
+  <footer class="designer">
+    Application conçue par<br>
+    <span class="designer-name">Atizoun Plateny AMOUSSOU</span><br>
+    <i class="bi bi-envelope"></i> atizoun@gmail.com &nbsp;•&nbsp; <i class="bi bi-telephone"></i> 01 97 74 40 35
+    <div class="reset-row">
+      <button class="btn btn-outline-danger btn-sm" id="resetBtn"><i class="bi bi-arrow-counterclockwise"></i> Réinitialiser les coches du mois</button>
+      <!-- Le bouton d'installation a été déplacé en flottant -->
+    </div>
+  </footer>
+
+</div>
+
+<div class="fab-whatsapp">
+  <button class="btn btn-wa-green" id="sendWhatsappBtn">
+    <i class="bi bi-whatsapp"></i> Envoyer le récapitulatif sur WhatsApp
+  </button>
+</div>
+
+<!-- Bouton d'installation flottant -->
+<div id="installFloat">
+  <button class="btn btn-sm" id="installBtn"><i class="bi bi-download"></i> Installer l'application</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  const DEFAULT_BANKS = [
+    "BOA","ECOBANK","NSIA","POSTE","ORABANK","SGB","UBA","BSIC",
+    "BIIC Ex BIBE","CLCAM","BANQ ATLANTIQUE","BGFI","Coris Bank",
+    "CBAO","CCEI BANK","SONI BANK","AFGC"
+  ];
+
+  const LS_BANKS = "recapvire_banks";
+  const LS_STATUS_PREFIX = "recapvire_status_";
+  const LS_OPTIONS_PREFIX = "recapvire_options_";
+
+  const monthPicker = document.getElementById("monthPicker");
+  const bankListEl = document.getElementById("bankList");
+  const emptyHint = document.getElementById("emptyHint");
+  const statOk = document.getElementById("statOk");
+  const statPending = document.getElementById("statPending");
+  const newBankInput = document.getElementById("newBankName");
+  const addBankBtn = document.getElementById("addBankBtn");
+  const sendBtn = document.getElementById("sendWhatsappBtn");
+  const toastZone = document.getElementById("toastZone");
+  const statutAgents = document.getElementById("statutAgents");
+  const typePaiement = document.getElementById("typePaiement");
+  const designationInput = document.getElementById("designationInput");
+  const designationContainer = document.getElementById("designationContainer");
+  const resetBtn = document.getElementById("resetBtn");
+  const installBtn = document.getElementById("installBtn");
+
+  const MOIS_FR = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+
+  function todayISO(){
+    const d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+
+  function currentMonthValue(){
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+  }
+
+  function getBanks(){
+    const raw = localStorage.getItem(LS_BANKS);
+    if(!raw){
+      localStorage.setItem(LS_BANKS, JSON.stringify(DEFAULT_BANKS));
+      return DEFAULT_BANKS.slice();
+    }
+    try{
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : DEFAULT_BANKS.slice();
+    }catch(e){
+      return DEFAULT_BANKS.slice();
+    }
+  }
+
+  function saveBanks(banks){
+    localStorage.setItem(LS_BANKS, JSON.stringify(banks));
+  }
+
+  function getStatusKey(monthValue){
+    return LS_STATUS_PREFIX + monthValue;
+  }
+
+  function getStatus(monthValue){
+    const raw = localStorage.getItem(getStatusKey(monthValue));
+    if(!raw) return {};
+    try{
+      const obj = JSON.parse(raw);
+      return (obj && typeof obj === "object") ? obj : {};
+    }catch(e){
+      return {};
+    }
+  }
+
+  function saveStatus(monthValue, status){
+    localStorage.setItem(getStatusKey(monthValue), JSON.stringify(status));
+  }
+
+  function getOptionsKey(monthValue){
+    return LS_OPTIONS_PREFIX + monthValue;
+  }
+
+  function getOptions(monthValue){
+    const raw = localStorage.getItem(getOptionsKey(monthValue));
+    if(!raw) return { statutAgents: "", typePaiement: "", designation: "" };
+    try{
+      const obj = JSON.parse(raw);
+      return obj && typeof obj === "object" ? obj : { statutAgents: "", typePaiement: "", designation: "" };
+    }catch(e){
+      return { statutAgents: "", typePaiement: "", designation: "" };
+    }
+  }
+
+  function saveOptions(monthValue, options){
+    localStorage.setItem(getOptionsKey(monthValue), JSON.stringify(options));
+  }
+
+  function showToast(msg){
+    const el = document.createElement("div");
+    el.className = "app-toast";
+    el.textContent = msg;
+    toastZone.appendChild(el);
+    setTimeout(()=>{ el.remove(); }, 2200);
+  }
+
+  function formatDateFR(iso){
+    if(!iso) return "";
+    const parts = iso.split("-");
+    if(parts.length !== 3) return iso;
+    return parts[2] + "/" + parts[1] + "/" + parts[0];
+  }
+
+  function areOptionsValid(){
+    const statut = statutAgents.value;
+    const type = typePaiement.value;
+    if(!statut || !type) return false;
+    if((type === "PRIME" || type === "AUTRE") && !designationInput.value.trim()){
+      return false;
+    }
+    return true;
+  }
+
+  function render(){
+    const monthValue = monthPicker.value || currentMonthValue();
+    const banks = getBanks();
+    const status = getStatus(monthValue);
+    const options = getOptions(monthValue);
+
+    // Appliquer les options sauvegardées
+    statutAgents.value = options.statutAgents || "";
+    typePaiement.value = options.typePaiement || "";
+    designationInput.value = options.designation || "";
+    // Gérer l'affichage du champ designation
+    const showDesignation = (typePaiement.value === "PRIME" || typePaiement.value === "AUTRE");
+    designationContainer.style.display = showDesignation ? "block" : "none";
+
+    bankListEl.innerHTML = "";
+
+    if(banks.length === 0){
+      emptyHint.classList.remove("d-none");
+    } else {
+      emptyHint.classList.add("d-none");
+    }
+
+    let okCount = 0, pendingCount = 0;
+
+    banks.forEach((bank, idx) => {
+      const entry = status[bank] || { checked:false, date:"" };
+      if(entry.checked) okCount++; else pendingCount++;
+
+      const card = document.createElement("div");
+      card.className = "bank-card" + (entry.checked ? " checked" : "");
+
+      card.innerHTML = `
+        <input class="form-check-input bank-checkbox" type="checkbox" data-bank="${escapeAttr(bank)}" ${entry.checked ? "checked" : ""}>
+        <span class="bank-status-icon ${entry.checked ? "ok" : "pending"}">
+          <i class="bi ${entry.checked ? "bi-check-circle-fill" : "bi-x-circle-fill"}"></i>
+        </span>
+        <span class="bank-name">${escapeHtml(bank)}</span>
+        <input type="date" class="bank-date-input" data-bank="${escapeAttr(bank)}" value="${entry.date || ""}" ${entry.checked ? "" : "disabled"}>
+        <button class="remove-bank-btn" data-bank="${escapeAttr(bank)}" title="Supprimer"><i class="bi bi-trash3"></i></button>
+      `;
+      bankListEl.appendChild(card);
+    });
+
+    statOk.textContent = okCount + " viré(s)";
+    statPending.textContent = pendingCount + " en attente";
+
+    // Wire events
+    bankListEl.querySelectorAll(".bank-checkbox").forEach(cb => {
+      cb.addEventListener("change", onCheckboxChange);
+    });
+    bankListEl.querySelectorAll(".bank-date-input").forEach(dt => {
+      dt.addEventListener("change", onDateChange);
+    });
+    bankListEl.querySelectorAll(".remove-bank-btn").forEach(btn => {
+      btn.addEventListener("click", onRemoveBank);
+    });
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, s => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[s]));
+  }
+  function escapeAttr(str){ return escapeHtml(str); }
+
+  function onCheckboxChange(e){
+    const monthValue = monthPicker.value || currentMonthValue();
+    // Vérifier que les options sont valides
+    if(!areOptionsValid()){
+      e.preventDefault();
+      e.target.checked = !e.target.checked; // revert
+      showToast("Veuillez sélectionner le statut agents et le type de paiement (et désignation si requis)");
+      return;
+    }
+    const bank = e.target.getAttribute("data-bank");
+    const status = getStatus(monthValue);
+    const checked = e.target.checked;
+    const existingDate = (status[bank] && status[bank].date) || "";
+    status[bank] = {
+      checked: checked,
+      date: checked ? (existingDate || todayISO()) : ""
+    };
+    saveStatus(monthValue, status);
+    render();
+  }
+
+  function onDateChange(e){
+    const bank = e.target.getAttribute("data-bank");
+    const monthValue = monthPicker.value || currentMonthValue();
+    const status = getStatus(monthValue);
+    if(!status[bank]) status[bank] = { checked:true, date:"" };
+    status[bank].date = e.target.value;
+    saveStatus(monthValue, status);
+  }
+
+  function onRemoveBank(e){
+    const btn = e.target.closest(".remove-bank-btn");
+    const bank = btn.getAttribute("data-bank");
+    // Demander le code de sécurité
+    const code = prompt("Entrez le code de sécurité (1984) pour supprimer cette banque :");
+    if(code !== "1984"){
+      showToast("Code incorrect. Suppression annulée.");
+      return;
+    }
+    if(!confirm(`Supprimer la banque "${bank}" de la liste ?`)) return;
+    let banks = getBanks();
+    banks = banks.filter(b => b !== bank);
+    saveBanks(banks);
+    showToast(`"${bank}" supprimée`);
+    render();
+  }
+
+  function saveCurrentOptions(){
+    const monthValue = monthPicker.value || currentMonthValue();
+    const options = {
+      statutAgents: statutAgents.value,
+      typePaiement: typePaiement.value,
+      designation: designationInput.value.trim()
+    };
+    saveOptions(monthValue, options);
+  }
+
+  // Gestion des changements des selects et input designation
+  statutAgents.addEventListener("change", saveCurrentOptions);
+  typePaiement.addEventListener("change", function(){
+    const show = (this.value === "PRIME" || this.value === "AUTRE");
+    designationContainer.style.display = show ? "block" : "none";
+    if(!show) designationInput.value = "";
+    saveCurrentOptions();
+  });
+  designationInput.addEventListener("change", saveCurrentOptions);
+  designationInput.addEventListener("input", saveCurrentOptions);
+
+  addBankBtn.addEventListener("click", () => {
+    const name = newBankInput.value.trim();
+    if(!name){
+      newBankInput.focus();
+      return;
+    }
+    const banks = getBanks();
+    if(banks.some(b => b.toLowerCase() === name.toLowerCase())){
+      showToast("Cette banque existe déjà");
+      return;
+    }
+    banks.push(name);
+    saveBanks(banks);
+    newBankInput.value = "";
+    showToast(`"${name}" ajoutée`);
+    render();
+  });
+
+  newBankInput.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      addBankBtn.click();
+    }
+  });
+
+  monthPicker.addEventListener("change", function(){
+    render();
+    // charger les options du mois
+    const monthValue = this.value || currentMonthValue();
+    const options = getOptions(monthValue);
+    statutAgents.value = options.statutAgents || "";
+    typePaiement.value = options.typePaiement || "";
+    designationInput.value = options.designation || "";
+    const show = (typePaiement.value === "PRIME" || typePaiement.value === "AUTRE");
+    designationContainer.style.display = show ? "block" : "none";
+  });
+
+  // Réinitialisation
+  resetBtn.addEventListener("click", function(){
+    const monthValue = monthPicker.value || currentMonthValue();
+    if(!confirm(`Voulez-vous vraiment effacer toutes les coches pour le mois ${monthValue} ?`)) return;
+    // Supprimer le statut du mois
+    localStorage.removeItem(getStatusKey(monthValue));
+    showToast("Historique des coches réinitialisé pour ce mois");
+    render();
+  });
+
+  sendBtn.addEventListener("click", () => {
+    const monthValue = monthPicker.value || currentMonthValue();
+    const [year, month] = monthValue.split("-");
+    const moisNom = MOIS_FR[parseInt(month,10)-1];
+    const banks = getBanks();
+    const status = getStatus(monthValue);
+    const options = getOptions(monthValue);
+
+    let virees = [];
+    let enCours = [];
+
+    banks.forEach(bank => {
+      const entry = status[bank] || { checked:false, date:"" };
+      if(entry.checked){
+        virees.push(`🟢 *${bank}* — viré le ${formatDateFR(entry.date) || "date non précisée"}`);
+      } else {
+        enCours.push(`⏳ *${bank}* — en cours`);
+      }
+    });
+
+    // Construction du titre dynamique
+    let titre = `*RÉCAPITULATIF DU VIREMENT`;
+    const type = options.typePaiement || "";
+    if (type === "SALAIRE") titre += ` DES SALAIRES`;
+    else if (type === "PRIME") titre += ` DES PRIMES`;
+    else if (type === "AUTRE") titre += ` DES PAIEMENTS AUTRES`;
+    else titre += ``; // cas non défini
+
+    titre += ` DU MOIS DE ${moisNom.toUpperCase()} ${year}`;
+    if (options.statutAgents) {
+      titre += ` POUR ${options.statutAgents.toUpperCase()}`;
+    }
+    if ((type === "PRIME" || type === "AUTRE") && options.designation) {
+      titre += ` (${options.designation})`;
+    }
+    titre += `*\n\n`;
+
+    let msg = titre;
+
+    if(virees.length){
+      msg += `*Banques ayant viré :*\n` + virees.join("\n") + "\n\n";
+    }
+    if(enCours.length){
+      msg += `*Banques n'ayant pas encore viré :*\n` + enCours.join("\n") + "\n\n";
+    }
+
+    msg += `NB : Signalez si c'est bon. Merci.\n\n`;
+
+    // Si toutes les banques ont viré, ajouter un message spécial
+    if (virees.length === banks.length && banks.length > 0) {
+      // Récupérer les infos pour le message
+      const typeLabel = type || "paiement";
+      const statutLabel = options.statutAgents || "";
+      const moisAvecMaj = moisNom.charAt(0).toUpperCase() + moisNom.slice(1);
+      msg += `💰 _*Toutes les banques répertoriées ont viré*_ pour le ${typeLabel.toLowerCase()} du mois de ${moisAvecMaj} ${year}${statutLabel ? ` pour ${statutLabel}` : ''}.\n`;
+      msg += `Chers collègues, faites en bon usage et rendez-vous au prochain mois.\n\n`;
+    }
+
+    msg += `_Récapitulatif généré via RecapVire_\n`;
+    msg += `Contact : atizoun@gmail.com`;
+
+    const url = "https://wa.me/?text=" + encodeURIComponent(msg);
+    window.open(url, "_blank");
+  });
+
+  // Init
+  monthPicker.value = currentMonthValue();
+  // Charger les options du mois courant
+  const initMonth = monthPicker.value;
+  const initOptions = getOptions(initMonth);
+  statutAgents.value = initOptions.statutAgents || "";
+  typePaiement.value = initOptions.typePaiement || "";
+  designationInput.value = initOptions.designation || "";
+  const showInit = (typePaiement.value === "PRIME" || typePaiement.value === "AUTRE");
+  designationContainer.style.display = showInit ? "block" : "none";
+
+  render();
+
+  // ----- Gestion PWA : Service Worker et bouton d'installation -----
+  // Enregistrement du service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log('Service Worker enregistré avec succès.'))
+      .catch(err => console.log('Échec de l\'enregistrement du Service Worker :', err));
+  }
+
+  // Gestion de l'installation (beforeinstallprompt)
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Empêche l'affichage automatique de la bannière
+    e.preventDefault();
+    // Sauvegarde l'événement pour une utilisation ultérieure
+    deferredPrompt = e;
+    // Affiche le bouton d'installation
+    installBtn.style.display = 'inline-block';
+  });
+
+  installBtn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      // Affiche la boîte de dialogue d'installation
+      deferredPrompt.prompt();
+      // Attend la réponse de l'utilisateur
+      const result = await deferredPrompt.userChoice;
+      if (result.outcome === 'accepted') {
+        showToast('Application installée avec succès !');
+      } else {
+        showToast('Installation annulée.');
+      }
+      // Réinitialise l'événement
+      deferredPrompt = null;
+      // Cache le bouton après installation
+      installBtn.style.display = 'none';
+    }
+  });
+
+  // Cache le bouton si l'application est déjà installée
+  window.addEventListener('appinstalled', () => {
+    installBtn.style.display = 'none';
+  });
+
+})();
+</script>
+</body>
+</html>
