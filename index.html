@@ -78,6 +78,25 @@
     border-top:1px solid rgba(255,255,255,0.15);
     padding-top:4px;
   }
+  .app-header .connection-status{
+    font-size:0.7rem;
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    background:rgba(255,255,255,0.15);
+    padding:2px 10px;
+    border-radius:20px;
+    margin-top:4px;
+  }
+  .app-header .connection-status .dot{
+    display:inline-block;
+    width:8px;height:8px;
+    border-radius:50%;
+    background:#25D366;
+  }
+  .app-header .connection-status.offline .dot{
+    background:#ff4444;
+  }
   .container-app{
     max-width:640px;
     margin:0 auto;
@@ -330,6 +349,10 @@
         <h1>RecapVire</h1>
         <small>Suivi des virements de salaires — ACDPE / FE</small>
         <div class="header-sub"><i class="bi bi-gift"></i> Don de Prof AMOUSSOU Atizoun Plateny à la communauté des enseignants de Bénin</div>
+        <div class="connection-status" id="connectionStatus">
+          <span class="dot"></span>
+          <span id="connectionLabel">Connexion...</span>
+        </div>
       </div>
     </div>
   </div>
@@ -380,7 +403,6 @@
     <i class="bi bi-envelope"></i> atizoun@gmail.com &nbsp;•&nbsp; <i class="bi bi-telephone"></i> 01 97 74 40 35
     <div class="reset-row">
       <button class="btn btn-outline-danger btn-sm" id="resetBtn"><i class="bi bi-arrow-counterclockwise"></i> Réinitialiser les coches du mois</button>
-      <!-- Le bouton d'installation a été déplacé en flottant -->
     </div>
   </footer>
 
@@ -397,431 +419,596 @@
   <button class="btn btn-sm" id="installBtn"><i class="bi bi-download"></i> Installer l'application</button>
 </div>
 
+<!-- Modale de sécurité -->
+<div class="modal fade" id="securityModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">🔒 Vérification de sécurité</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <p id="securityModalMessage">Cette action est réservée à l'administrateur. Veuillez entrer le code de sécurité.</p>
+        <input type="password" id="securityCodeInput" class="form-control" placeholder="Code de sécurité" autocomplete="off">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-primary" id="securityModalConfirm">Confirmer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
-<script>
-(function(){
-  "use strict";
+<script type="module">
+// ----- IMPORTS FIREBASE -----
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, child, update, remove } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
 
-  const DEFAULT_BANKS = [
-    "BOA","ECOBANK","NSIA","POSTE","ORABANK","SGB","UBA","BSIC",
-    "BIIC Ex BIBE","CLCAM","BANQ ATLANTIQUE","BGFI","Coris Bank",
-    "CBAO","CCEI BANK","SONI BANK","AFGC"
-  ];
+// Configuration Firebase avec databaseURL corrigé
+const firebaseConfig = {
+  apiKey: "AIzaSyDYh5QlmsBAiZ-Ejd9Rsj9QbomQEa0Zons",
+  authDomain: "recapvire.firebaseapp.com",
+  projectId: "recapvire",
+  storageBucket: "recapvire.firebasestorage.app",
+  messagingSenderId: "56950647457",
+  appId: "1:56950647457:web:4d7c65bc99e5e20f2e1ee0",
+  databaseURL: "https://recapvire-default-rtdb.europe-west1.firebasedatabase.app"
+};
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
 
-  const LS_BANKS = "recapvire_banks";
-  const LS_STATUS_PREFIX = "recapvire_status_";
-  const LS_OPTIONS_PREFIX = "recapvire_options_";
+// ----- CONSTANTES -----
+const DEFAULT_BANKS = [
+  "BOA","ECOBANK","NSIA","POSTE","ORABANK","SGB","UBA","BSIC",
+  "BIIC Ex BIBE","CLCAM","BANQ ATLANTIQUE","BGFI","Coris Bank",
+  "CBAO","CCEI BANK","SONI BANK","AFGC"
+];
+const MOIS_FR = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
 
-  const monthPicker = document.getElementById("monthPicker");
-  const bankListEl = document.getElementById("bankList");
-  const emptyHint = document.getElementById("emptyHint");
-  const statOk = document.getElementById("statOk");
-  const statPending = document.getElementById("statPending");
-  const newBankInput = document.getElementById("newBankName");
-  const addBankBtn = document.getElementById("addBankBtn");
-  const sendBtn = document.getElementById("sendWhatsappBtn");
-  const toastZone = document.getElementById("toastZone");
-  const statutAgents = document.getElementById("statutAgents");
-  const typePaiement = document.getElementById("typePaiement");
-  const designationInput = document.getElementById("designationInput");
-  const designationContainer = document.getElementById("designationContainer");
-  const resetBtn = document.getElementById("resetBtn");
-  const installBtn = document.getElementById("installBtn");
+// ----- RÉFÉRENCES DOM -----
+const monthPicker = document.getElementById("monthPicker");
+const bankListEl = document.getElementById("bankList");
+const emptyHint = document.getElementById("emptyHint");
+const statOk = document.getElementById("statOk");
+const statPending = document.getElementById("statPending");
+const newBankInput = document.getElementById("newBankName");
+const addBankBtn = document.getElementById("addBankBtn");
+const sendBtn = document.getElementById("sendWhatsappBtn");
+const toastZone = document.getElementById("toastZone");
+const statutAgents = document.getElementById("statutAgents");
+const typePaiement = document.getElementById("typePaiement");
+const designationInput = document.getElementById("designationInput");
+const designationContainer = document.getElementById("designationContainer");
+const resetBtn = document.getElementById("resetBtn");
+const installBtn = document.getElementById("installBtn");
+const connectionStatus = document.getElementById("connectionStatus");
+const connectionLabel = document.getElementById("connectionLabel");
 
-  const MOIS_FR = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+// Éléments de la modale
+const securityModalEl = document.getElementById("securityModal");
+const securityModalMsg = document.getElementById("securityModalMessage");
+const securityCodeInput = document.getElementById("securityCodeInput");
+const securityModalConfirm = document.getElementById("securityModalConfirm");
+const securityModal = new bootstrap.Modal(securityModalEl, { backdrop: 'static' });
 
-  function todayISO(){
-    const d = new Date();
-    return d.toISOString().slice(0,10);
+// ----- ÉTAT LOCAL (synchronisé avec Firebase) -----
+let banksData = [];          // liste des banques
+let statusesData = {};       // { mois: { banque: {checked, date} } }
+let optionsData = {};        // { mois: {statutAgents, typePaiement, designation} }
+let initialLoadDone = false;
+
+// ----- FONCTIONS UTILITAIRES -----
+function showToast(msg){
+  const el = document.createElement("div");
+  el.className = "app-toast";
+  el.textContent = msg;
+  toastZone.appendChild(el);
+  setTimeout(()=>{ el.remove(); }, 2200);
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[s]));
+}
+function escapeAttr(str){ return escapeHtml(str); }
+
+function formatDateFR(iso){
+  if(!iso) return "";
+  const parts = iso.split("-");
+  if(parts.length !== 3) return iso;
+  return parts[2] + "/" + parts[1] + "/" + parts[0];
+}
+
+function todayISO(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+function currentMonthValue(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+}
+
+// ----- FONCTIONS FIREBASE (accès asynchrone) -----
+async function readBanks() {
+  const snap = await get(ref(database, 'banks'));
+  if (snap.exists()) {
+    const val = snap.val();
+    return Array.isArray(val) ? val : DEFAULT_BANKS.slice();
+  } else {
+    // Pas de données : initialiser avec DEFAULT_BANKS
+    await set(ref(database, 'banks'), DEFAULT_BANKS);
+    return DEFAULT_BANKS.slice();
   }
+}
 
-  function currentMonthValue(){
-    const d = new Date();
-    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
-  }
+async function writeBanks(banks) {
+  await set(ref(database, 'banks'), banks);
+}
 
-  function getBanks(){
-    const raw = localStorage.getItem(LS_BANKS);
-    if(!raw){
-      localStorage.setItem(LS_BANKS, JSON.stringify(DEFAULT_BANKS));
-      return DEFAULT_BANKS.slice();
-    }
-    try{
-      const arr = JSON.parse(raw);
-      return Array.isArray(arr) ? arr : DEFAULT_BANKS.slice();
-    }catch(e){
-      return DEFAULT_BANKS.slice();
-    }
-  }
+async function readStatus(month) {
+  const snap = await get(child(ref(database), `statuses/${month}`));
+  if (snap.exists()) return snap.val();
+  return {};
+}
 
-  function saveBanks(banks){
-    localStorage.setItem(LS_BANKS, JSON.stringify(banks));
-  }
+async function writeStatus(month, status) {
+  await set(ref(database, `statuses/${month}`), status);
+}
 
-  function getStatusKey(monthValue){
-    return LS_STATUS_PREFIX + monthValue;
-  }
+async function readOptions(month) {
+  const snap = await get(child(ref(database), `options/${month}`));
+  if (snap.exists()) return snap.val();
+  return { statutAgents: "", typePaiement: "", designation: "" };
+}
 
-  function getStatus(monthValue){
-    const raw = localStorage.getItem(getStatusKey(monthValue));
-    if(!raw) return {};
-    try{
-      const obj = JSON.parse(raw);
-      return (obj && typeof obj === "object") ? obj : {};
-    }catch(e){
-      return {};
-    }
-  }
+async function writeOptions(month, options) {
+  await set(ref(database, `options/${month}`), options);
+}
 
-  function saveStatus(monthValue, status){
-    localStorage.setItem(getStatusKey(monthValue), JSON.stringify(status));
-  }
-
-  function getOptionsKey(monthValue){
-    return LS_OPTIONS_PREFIX + monthValue;
-  }
-
-  function getOptions(monthValue){
-    const raw = localStorage.getItem(getOptionsKey(monthValue));
-    if(!raw) return { statutAgents: "", typePaiement: "", designation: "" };
-    try{
-      const obj = JSON.parse(raw);
-      return obj && typeof obj === "object" ? obj : { statutAgents: "", typePaiement: "", designation: "" };
-    }catch(e){
-      return { statutAgents: "", typePaiement: "", designation: "" };
-    }
-  }
-
-  function saveOptions(monthValue, options){
-    localStorage.setItem(getOptionsKey(monthValue), JSON.stringify(options));
-  }
-
-  function showToast(msg){
-    const el = document.createElement("div");
-    el.className = "app-toast";
-    el.textContent = msg;
-    toastZone.appendChild(el);
-    setTimeout(()=>{ el.remove(); }, 2200);
-  }
-
-  function formatDateFR(iso){
-    if(!iso) return "";
-    const parts = iso.split("-");
-    if(parts.length !== 3) return iso;
-    return parts[2] + "/" + parts[1] + "/" + parts[0];
-  }
-
-  function areOptionsValid(){
-    const statut = statutAgents.value;
-    const type = typePaiement.value;
-    if(!statut || !type) return false;
-    if((type === "PRIME" || type === "AUTRE") && !designationInput.value.trim()){
-      return false;
-    }
-    return true;
-  }
-
-  function render(){
-    const monthValue = monthPicker.value || currentMonthValue();
-    const banks = getBanks();
-    const status = getStatus(monthValue);
-    const options = getOptions(monthValue);
-
-    // Appliquer les options sauvegardées
-    statutAgents.value = options.statutAgents || "";
-    typePaiement.value = options.typePaiement || "";
-    designationInput.value = options.designation || "";
-    // Gérer l'affichage du champ designation
-    const showDesignation = (typePaiement.value === "PRIME" || typePaiement.value === "AUTRE");
-    designationContainer.style.display = showDesignation ? "block" : "none";
-
-    bankListEl.innerHTML = "";
-
-    if(banks.length === 0){
-      emptyHint.classList.remove("d-none");
+// ----- LISTENERS EN TEMPS RÉEL -----
+function setupListeners() {
+  // Écoute des banques
+  onValue(ref(database, 'banks'), (snapshot) => {
+    if (snapshot.exists()) {
+      const val = snapshot.val();
+      banksData = Array.isArray(val) ? val : DEFAULT_BANKS.slice();
     } else {
-      emptyHint.classList.add("d-none");
+      // Si supprimé, on remet les défauts
+      banksData = DEFAULT_BANKS.slice();
+      writeBanks(banksData); // recréer
     }
+    if (initialLoadDone) render();
+  });
 
-    let okCount = 0, pendingCount = 0;
+  // Écoute des statuses
+  onValue(ref(database, 'statuses'), (snapshot) => {
+    if (snapshot.exists()) {
+      statusesData = snapshot.val();
+    } else {
+      statusesData = {};
+    }
+    if (initialLoadDone) render();
+  });
 
-    banks.forEach((bank, idx) => {
-      const entry = status[bank] || { checked:false, date:"" };
-      if(entry.checked) okCount++; else pendingCount++;
+  // Écoute des options
+  onValue(ref(database, 'options'), (snapshot) => {
+    if (snapshot.exists()) {
+      optionsData = snapshot.val();
+    } else {
+      optionsData = {};
+    }
+    if (initialLoadDone) render();
+  });
 
-      const card = document.createElement("div");
-      card.className = "bank-card" + (entry.checked ? " checked" : "");
+  // Écoute de l'état de connexion
+  const connectedRef = ref(database, '.info/connected');
+  onValue(connectedRef, (snap) => {
+    const connected = snap.val();
+    if (connected) {
+      connectionStatus.classList.remove('offline');
+      connectionLabel.textContent = 'En ligne';
+    } else {
+      connectionStatus.classList.add('offline');
+      connectionLabel.textContent = 'Hors ligne';
+    }
+  });
+}
 
-      card.innerHTML = `
-        <input class="form-check-input bank-checkbox" type="checkbox" data-bank="${escapeAttr(bank)}" ${entry.checked ? "checked" : ""}>
-        <span class="bank-status-icon ${entry.checked ? "ok" : "pending"}">
-          <i class="bi ${entry.checked ? "bi-check-circle-fill" : "bi-x-circle-fill"}"></i>
-        </span>
-        <span class="bank-name">${escapeHtml(bank)}</span>
-        <input type="date" class="bank-date-input" data-bank="${escapeAttr(bank)}" value="${entry.date || ""}" ${entry.checked ? "" : "disabled"}>
-        <button class="remove-bank-btn" data-bank="${escapeAttr(bank)}" title="Supprimer"><i class="bi bi-trash3"></i></button>
-      `;
-      bankListEl.appendChild(card);
-    });
+// ----- RENDU PRINCIPAL -----
+function render(){
+  const monthValue = monthPicker.value || currentMonthValue();
+  const banks = banksData.slice();
+  const status = statusesData[monthValue] || {};
+  const options = optionsData[monthValue] || { statutAgents: "", typePaiement: "", designation: "" };
 
-    statOk.textContent = okCount + " viré(s)";
-    statPending.textContent = pendingCount + " en attente";
+  // Appliquer les options sauvegardées
+  statutAgents.value = options.statutAgents || "";
+  typePaiement.value = options.typePaiement || "";
+  designationInput.value = options.designation || "";
+  const showDesignation = (typePaiement.value === "PRIME" || typePaiement.value === "AUTRE");
+  designationContainer.style.display = showDesignation ? "block" : "none";
 
-    // Wire events
-    bankListEl.querySelectorAll(".bank-checkbox").forEach(cb => {
-      cb.addEventListener("change", onCheckboxChange);
-    });
-    bankListEl.querySelectorAll(".bank-date-input").forEach(dt => {
-      dt.addEventListener("change", onDateChange);
-    });
-    bankListEl.querySelectorAll(".remove-bank-btn").forEach(btn => {
-      btn.addEventListener("click", onRemoveBank);
-    });
+  // Mettre à jour les data-prev-value pour la sécurité (valeurs précédentes)
+  statutAgents.dataset.prevValue = statutAgents.value;
+  typePaiement.dataset.prevValue = typePaiement.value;
+  designationInput.dataset.prevValue = designationInput.value;
+
+  bankListEl.innerHTML = "";
+
+  if(banks.length === 0){
+    emptyHint.classList.remove("d-none");
+  } else {
+    emptyHint.classList.add("d-none");
   }
 
-  function escapeHtml(str){
-    return String(str).replace(/[&<>"']/g, s => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[s]));
-  }
-  function escapeAttr(str){ return escapeHtml(str); }
+  let okCount = 0, pendingCount = 0;
 
-  function onCheckboxChange(e){
-    const monthValue = monthPicker.value || currentMonthValue();
-    // Vérifier que les options sont valides
-    if(!areOptionsValid()){
-      e.preventDefault();
-      e.target.checked = !e.target.checked; // revert
-      showToast("Veuillez sélectionner le statut agents et le type de paiement (et désignation si requis)");
-      return;
-    }
-    const bank = e.target.getAttribute("data-bank");
-    const status = getStatus(monthValue);
-    const checked = e.target.checked;
-    const existingDate = (status[bank] && status[bank].date) || "";
-    status[bank] = {
-      checked: checked,
-      date: checked ? (existingDate || todayISO()) : ""
+  banks.forEach((bank, idx) => {
+    const entry = status[bank] || { checked:false, date:"" };
+    if(entry.checked) okCount++; else pendingCount++;
+
+    const card = document.createElement("div");
+    card.className = "bank-card" + (entry.checked ? " checked" : "");
+
+    card.innerHTML = `
+      <input class="form-check-input bank-checkbox" type="checkbox" data-bank="${escapeAttr(bank)}" ${entry.checked ? "checked" : ""}>
+      <span class="bank-status-icon ${entry.checked ? "ok" : "pending"}">
+        <i class="bi ${entry.checked ? "bi-check-circle-fill" : "bi-x-circle-fill"}"></i>
+      </span>
+      <span class="bank-name">${escapeHtml(bank)}</span>
+      <input type="date" class="bank-date-input" data-bank="${escapeAttr(bank)}" value="${entry.date || ""}" ${entry.checked ? "" : "disabled"}>
+      <button class="remove-bank-btn" data-bank="${escapeAttr(bank)}" title="Supprimer"><i class="bi bi-trash3"></i></button>
+    `;
+    bankListEl.appendChild(card);
+  });
+
+  statOk.textContent = okCount + " viré(s)";
+  statPending.textContent = pendingCount + " en attente";
+
+  // Attacher les événements
+  bankListEl.querySelectorAll(".bank-checkbox").forEach(cb => {
+    cb.addEventListener("change", onCheckboxChange);
+  });
+  bankListEl.querySelectorAll(".bank-date-input").forEach(dt => {
+    dt.addEventListener("change", onDateChange);
+  });
+  bankListEl.querySelectorAll(".remove-bank-btn").forEach(btn => {
+    btn.addEventListener("click", onRemoveBank);
+  });
+}
+
+// ----- GESTION DE LA SÉCURITÉ (modale) -----
+function askSecurityCode(message) {
+  return new Promise((resolve) => {
+    securityModalMsg.textContent = message || "Cette action est réservée à l'administrateur. Veuillez entrer le code de sécurité.";
+    securityCodeInput.value = "";
+    securityModalEl.addEventListener('shown.bs.modal', function onShown() {
+      securityCodeInput.focus();
+      securityModalEl.removeEventListener('shown.bs.modal', onShown);
+    });
+    const confirmHandler = function() {
+      const code = securityCodeInput.value.trim();
+      securityModalConfirm.removeEventListener('click', confirmHandler);
+      securityModalEl.removeEventListener('hidden.bs.modal', hiddenHandler);
+      securityModal.hide();
+      resolve(code || null);
     };
-    saveStatus(monthValue, status);
-    render();
-  }
-
-  function onDateChange(e){
-    const bank = e.target.getAttribute("data-bank");
-    const monthValue = monthPicker.value || currentMonthValue();
-    const status = getStatus(monthValue);
-    if(!status[bank]) status[bank] = { checked:true, date:"" };
-    status[bank].date = e.target.value;
-    saveStatus(monthValue, status);
-  }
-
-  function onRemoveBank(e){
-    const btn = e.target.closest(".remove-bank-btn");
-    const bank = btn.getAttribute("data-bank");
-    // Demander le code de sécurité
-    const code = prompt("Entrez le code de sécurité (1984) pour supprimer cette banque :");
-    if(code !== "1984"){
-      showToast("Code incorrect. Suppression annulée.");
-      return;
-    }
-    if(!confirm(`Supprimer la banque "${bank}" de la liste ?`)) return;
-    let banks = getBanks();
-    banks = banks.filter(b => b !== bank);
-    saveBanks(banks);
-    showToast(`"${bank}" supprimée`);
-    render();
-  }
-
-  function saveCurrentOptions(){
-    const monthValue = monthPicker.value || currentMonthValue();
-    const options = {
-      statutAgents: statutAgents.value,
-      typePaiement: typePaiement.value,
-      designation: designationInput.value.trim()
+    const hiddenHandler = function() {
+      securityModalConfirm.removeEventListener('click', confirmHandler);
+      securityModalEl.removeEventListener('hidden.bs.modal', hiddenHandler);
+      resolve(null);
     };
-    saveOptions(monthValue, options);
+    securityModalConfirm.addEventListener('click', confirmHandler);
+    securityModalEl.addEventListener('hidden.bs.modal', hiddenHandler);
+    securityModal.show();
+  });
+}
+
+// ----- ÉVÉNEMENTS SUR LES BANQUES (asynchrones avec Firebase) -----
+async function onCheckboxChange(e){
+  const monthValue = monthPicker.value || currentMonthValue();
+  // Vérifier que les options sont valides
+  if(!areOptionsValid()){
+    e.preventDefault();
+    e.target.checked = !e.target.checked;
+    showToast("Veuillez sélectionner le statut agents et le type de paiement (et désignation si requis)");
+    return;
   }
 
-  // Gestion des changements des selects et input designation
-  statutAgents.addEventListener("change", saveCurrentOptions);
-  typePaiement.addEventListener("change", function(){
-    const show = (this.value === "PRIME" || this.value === "AUTRE");
-    designationContainer.style.display = show ? "block" : "none";
-    if(!show) designationInput.value = "";
-    saveCurrentOptions();
-  });
-  designationInput.addEventListener("change", saveCurrentOptions);
-  designationInput.addEventListener("input", saveCurrentOptions);
-
-  addBankBtn.addEventListener("click", () => {
-    const name = newBankInput.value.trim();
-    if(!name){
-      newBankInput.focus();
-      return;
+  if (!e.target.checked) {
+    e.preventDefault(); // on empêche le changement immédiat
+    const code = await askSecurityCode("⚠️ Action réservée à l'administrateur. Entrez le code de sécurité pour décochage.");
+    if (code === "1984") {
+      // Procéder au décochage
+      const bank = e.target.getAttribute("data-bank");
+      let status = statusesData[monthValue] || {};
+      status[bank] = { checked: false, date: "" };
+      // Mettre à jour Firebase
+      await writeStatus(monthValue, status);
+      // La mise à jour locale se fera via le listener, mais on force l'affichage
+      // On met à jour localement pour réactivité
+      statusesData[monthValue] = status;
+      render();
+    } else {
+      e.target.checked = true;
+      showToast("Code incorrect ou action annulée. Décochage non effectué.");
     }
-    const banks = getBanks();
-    if(banks.some(b => b.toLowerCase() === name.toLowerCase())){
-      showToast("Cette banque existe déjà");
-      return;
-    }
-    banks.push(name);
-    saveBanks(banks);
-    newBankInput.value = "";
-    showToast(`"${name}" ajoutée`);
+  } else {
+    // Coche : pas de sécurité
+    const bank = e.target.getAttribute("data-bank");
+    let status = statusesData[monthValue] || {};
+    const existingDate = (status[bank] && status[bank].date) || todayISO();
+    status[bank] = { checked: true, date: existingDate };
+    await writeStatus(monthValue, status);
+    statusesData[monthValue] = status;
     render();
-  });
+  }
+}
 
-  newBankInput.addEventListener("keydown", (e) => {
-    if(e.key === "Enter"){
-      e.preventDefault();
-      addBankBtn.click();
-    }
-  });
+function onDateChange(e){
+  const bank = e.target.getAttribute("data-bank");
+  const monthValue = monthPicker.value || currentMonthValue();
+  let status = statusesData[monthValue] || {};
+  if(!status[bank]) status[bank] = { checked:true, date:"" };
+  status[bank].date = e.target.value;
+  writeStatus(monthValue, status);
+  statusesData[monthValue] = status;
+  // Pas besoin de rerender, l'input a déjà la valeur
+}
 
-  monthPicker.addEventListener("change", function(){
-    render();
-    // charger les options du mois
-    const monthValue = this.value || currentMonthValue();
-    const options = getOptions(monthValue);
-    statutAgents.value = options.statutAgents || "";
-    typePaiement.value = options.typePaiement || "";
-    designationInput.value = options.designation || "";
-    const show = (typePaiement.value === "PRIME" || typePaiement.value === "AUTRE");
-    designationContainer.style.display = show ? "block" : "none";
-  });
+async function onRemoveBank(e){
+  const btn = e.target.closest(".remove-bank-btn");
+  const bank = btn.getAttribute("data-bank");
+  const code = await askSecurityCode(`⚠️ Suppression de la banque "${bank}". Cette action est réservée à l'administrateur. Entrez le code de sécurité.`);
+  if (code === "1984") {
+    if (!confirm(`Supprimer définitivement la banque "${bank}" de la liste ?`)) return;
+    let banks = banksData.filter(b => b !== bank);
+    await writeBanks(banks);
+    // Le listener mettra à jour banksData et render
+  } else {
+    showToast("Code incorrect ou action annulée. Suppression annulée.");
+  }
+}
 
-  // Réinitialisation
-  resetBtn.addEventListener("click", function(){
+// ----- GESTION DES OPTIONS (statut, type, désignation) avec sécurité -----
+function areOptionsValid(){
+  const statut = statutAgents.value;
+  const type = typePaiement.value;
+  if(!statut || !type) return false;
+  if((type === "PRIME" || type === "AUTRE") && !designationInput.value.trim()){
+    return false;
+  }
+  return true;
+}
+
+async function handleOptionChange(e) {
+  const element = e.target;
+  if (element.disabled) return;
+  const previousValue = element.dataset.prevValue || '';
+  const newValue = element.value;
+  if (previousValue === newValue) return;
+
+  const code = await askSecurityCode("⚠️ Modification des paramètres. Cette action est réservée à l'administrateur. Entrez le code de sécurité.");
+  if (code === "1984") {
+    element.dataset.prevValue = newValue;
+    // Sauvegarder les options
     const monthValue = monthPicker.value || currentMonthValue();
-    if(!confirm(`Voulez-vous vraiment effacer toutes les coches pour le mois ${monthValue} ?`)) return;
+    let options = optionsData[monthValue] || {};
+    options.statutAgents = statutAgents.value;
+    options.typePaiement = typePaiement.value;
+    options.designation = designationInput.value.trim();
+    await writeOptions(monthValue, options);
+    optionsData[monthValue] = options;
+    // Gérer affichage désignation
+    if (element.id === 'typePaiement') {
+      const show = (newValue === "PRIME" || newValue === "AUTRE");
+      designationContainer.style.display = show ? "block" : "none";
+      if (!show) {
+        designationInput.value = "";
+        designationInput.dataset.prevValue = "";
+        // Mettre à jour les options après avoir vidé
+        options.designation = "";
+        await writeOptions(monthValue, options);
+        optionsData[monthValue] = options;
+      }
+    }
+    showToast("Modification enregistrée.");
+  } else {
+    element.value = previousValue;
+    showToast("Code incorrect ou action annulée. Modification annulée.");
+  }
+}
+
+// ----- AUTRES ÉVÉNEMENTS (ajout banque, reset, envoi) -----
+addBankBtn.addEventListener("click", async () => {
+  const name = newBankInput.value.trim();
+  if(!name){
+    newBankInput.focus();
+    return;
+  }
+  if(banksData.some(b => b.toLowerCase() === name.toLowerCase())){
+    showToast("Cette banque existe déjà");
+    return;
+  }
+  const newBanks = [...banksData, name];
+  await writeBanks(newBanks);
+  // Le listener mettra à jour
+  newBankInput.value = "";
+  showToast(`"${name}" ajoutée`);
+});
+
+newBankInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){
+    e.preventDefault();
+    addBankBtn.click();
+  }
+});
+
+monthPicker.addEventListener("change", function(){
+  render(); // les données sont déjà dans les variables globales
+});
+
+resetBtn.addEventListener("click", async function(){
+  const monthValue = monthPicker.value || currentMonthValue();
+  const code = await askSecurityCode("⚠️ Réinitialisation de toutes les coches du mois. Cette action est réservée à l'administrateur. Entrez le code de sécurité.");
+  if (code === "1984") {
+    if (!confirm(`Voulez-vous vraiment effacer toutes les coches pour le mois ${monthValue} ?`)) return;
     // Supprimer le statut du mois
-    localStorage.removeItem(getStatusKey(monthValue));
+    await remove(ref(database, `statuses/${monthValue}`));
+    // Mettre à jour local
+    delete statusesData[monthValue];
     showToast("Historique des coches réinitialisé pour ce mois");
     render();
+  } else {
+    showToast("Code incorrect ou action annulée. Réinitialisation annulée.");
+  }
+});
+
+sendBtn.addEventListener("click", () => {
+  const monthValue = monthPicker.value || currentMonthValue();
+  const [year, month] = monthValue.split("-");
+  const moisNom = MOIS_FR[parseInt(month,10)-1];
+  const banks = banksData;
+  const status = statusesData[monthValue] || {};
+  const options = optionsData[monthValue] || {};
+
+  let virees = [];
+  let enCours = [];
+
+  banks.forEach(bank => {
+    const entry = status[bank] || { checked:false, date:"" };
+    if(entry.checked){
+      virees.push(`🟢 *${bank}* — viré le ${formatDateFR(entry.date) || "date non précisée"}`);
+    } else {
+      enCours.push(`⏳ *${bank}* — en cours`);
+    }
   });
 
-  sendBtn.addEventListener("click", () => {
-    const monthValue = monthPicker.value || currentMonthValue();
-    const [year, month] = monthValue.split("-");
-    const moisNom = MOIS_FR[parseInt(month,10)-1];
-    const banks = getBanks();
-    const status = getStatus(monthValue);
-    const options = getOptions(monthValue);
+  let titre = `*RÉCAPITULATIF DU VIREMENT`;
+  const type = options.typePaiement || "";
+  if (type === "SALAIRE") titre += ` DES SALAIRES`;
+  else if (type === "PRIME") titre += ` DES PRIMES`;
+  else if (type === "AUTRE") titre += ` DES PAIEMENTS AUTRES`;
+  else titre += ``;
 
-    let virees = [];
-    let enCours = [];
+  titre += ` DU MOIS DE ${moisNom.toUpperCase()} ${year}`;
+  if (options.statutAgents) {
+    titre += ` POUR ${options.statutAgents.toUpperCase()}`;
+  }
+  if ((type === "PRIME" || type === "AUTRE") && options.designation) {
+    titre += ` (${options.designation})`;
+  }
+  titre += `*\n\n`;
 
-    banks.forEach(bank => {
-      const entry = status[bank] || { checked:false, date:"" };
-      if(entry.checked){
-        virees.push(`🟢 *${bank}* — viré le ${formatDateFR(entry.date) || "date non précisée"}`);
-      } else {
-        enCours.push(`⏳ *${bank}* — en cours`);
-      }
-    });
+  let msg = titre;
 
-    // Construction du titre dynamique
-    let titre = `*RÉCAPITULATIF DU VIREMENT`;
-    const type = options.typePaiement || "";
-    if (type === "SALAIRE") titre += ` DES SALAIRES`;
-    else if (type === "PRIME") titre += ` DES PRIMES`;
-    else if (type === "AUTRE") titre += ` DES PAIEMENTS AUTRES`;
-    else titre += ``; // cas non défini
+  if(virees.length){
+    msg += `*Banques ayant viré :*\n` + virees.join("\n") + "\n\n";
+  }
+  if(enCours.length){
+    msg += `*Banques n'ayant pas encore viré :*\n` + enCours.join("\n") + "\n\n";
+  }
 
-    titre += ` DU MOIS DE ${moisNom.toUpperCase()} ${year}`;
-    if (options.statutAgents) {
-      titre += ` POUR ${options.statutAgents.toUpperCase()}`;
-    }
-    if ((type === "PRIME" || type === "AUTRE") && options.designation) {
-      titre += ` (${options.designation})`;
-    }
-    titre += `*\n\n`;
+  msg += `NB : Signalez si c'est bon. Merci.\n\n`;
 
-    let msg = titre;
+  if (virees.length === banks.length && banks.length > 0) {
+    const typeLabel = type || "paiement";
+    const statutLabel = options.statutAgents || "";
+    const moisAvecMaj = moisNom.charAt(0).toUpperCase() + moisNom.slice(1);
+    msg += `💰 _*Toutes les banques répertoriées ont viré*_ pour le ${typeLabel.toLowerCase()} du mois de ${moisAvecMaj} ${year}${statutLabel ? ` pour ${statutLabel}` : ''}.\n`;
+    msg += `Chers collègues, faites en bon usage et rendez-vous au prochain mois.\n\n`;
+  }
 
-    if(virees.length){
-      msg += `*Banques ayant viré :*\n` + virees.join("\n") + "\n\n";
-    }
-    if(enCours.length){
-      msg += `*Banques n'ayant pas encore viré :*\n` + enCours.join("\n") + "\n\n";
-    }
+  msg += `_Récapitulatif généré via RecapVire_\n`;
+  msg += `Contact : atizoun@gmail.com`;
 
-    msg += `NB : Signalez si c'est bon. Merci.\n\n`;
+  const url = "https://wa.me/?text=" + encodeURIComponent(msg);
+  window.open(url, "_blank");
+});
 
-    // Si toutes les banques ont viré, ajouter un message spécial
-    if (virees.length === banks.length && banks.length > 0) {
-      // Récupérer les infos pour le message
-      const typeLabel = type || "paiement";
-      const statutLabel = options.statutAgents || "";
-      const moisAvecMaj = moisNom.charAt(0).toUpperCase() + moisNom.slice(1);
-      msg += `💰 _*Toutes les banques répertoriées ont viré*_ pour le ${typeLabel.toLowerCase()} du mois de ${moisAvecMaj} ${year}${statutLabel ? ` pour ${statutLabel}` : ''}.\n`;
-      msg += `Chers collègues, faites en bon usage et rendez-vous au prochain mois.\n\n`;
-    }
+// ----- INITIALISATION -----
+async function init() {
+  // Lire les données initiales une fois pour alimenter les variables
+  banksData = await readBanks();
+  const statusSnap = await get(ref(database, 'statuses'));
+  statusesData = statusSnap.exists() ? statusSnap.val() : {};
+  const optionsSnap = await get(ref(database, 'options'));
+  optionsData = optionsSnap.exists() ? optionsSnap.val() : {};
 
-    msg += `_Récapitulatif généré via RecapVire_\n`;
-    msg += `Contact : atizoun@gmail.com`;
+  initialLoadDone = true;
 
-    const url = "https://wa.me/?text=" + encodeURIComponent(msg);
-    window.open(url, "_blank");
-  });
+  // Mettre en place les listeners
+  setupListeners();
 
-  // Init
+  // Initialiser le monthPicker
   monthPicker.value = currentMonthValue();
+
   // Charger les options du mois courant
   const initMonth = monthPicker.value;
-  const initOptions = getOptions(initMonth);
+  const initOptions = optionsData[initMonth] || {};
   statutAgents.value = initOptions.statutAgents || "";
   typePaiement.value = initOptions.typePaiement || "";
   designationInput.value = initOptions.designation || "";
   const showInit = (typePaiement.value === "PRIME" || typePaiement.value === "AUTRE");
   designationContainer.style.display = showInit ? "block" : "none";
+  statutAgents.dataset.prevValue = statutAgents.value;
+  typePaiement.dataset.prevValue = typePaiement.value;
+  designationInput.dataset.prevValue = designationInput.value;
 
+  // Ajouter les écouteurs pour les options (sécurité)
+  statutAgents.addEventListener('focus', function() { this.dataset.prevValue = this.value; });
+  typePaiement.addEventListener('focus', function() { this.dataset.prevValue = this.value; });
+  designationInput.addEventListener('focus', function() { this.dataset.prevValue = this.value; });
+  statutAgents.addEventListener('change', handleOptionChange);
+  typePaiement.addEventListener('change', handleOptionChange);
+  designationInput.addEventListener('change', handleOptionChange);
+  designationInput.addEventListener('blur', function(e) {
+    if (this.dataset.prevValue !== this.value) {
+      handleOptionChange(e);
+    }
+  });
+
+  // Premier rendu
   render();
 
-  // ----- Gestion PWA : Service Worker et bouton d'installation -----
-  // Enregistrement du service worker
+  // Gestion PWA
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js')
-      .then(() => console.log('Service Worker enregistré avec succès.'))
-      .catch(err => console.log('Échec de l\'enregistrement du Service Worker :', err));
+      .then(() => console.log('SW enregistré'))
+      .catch(err => console.log('Erreur SW', err));
   }
 
-  // Gestion de l'installation (beforeinstallprompt)
   let deferredPrompt;
   window.addEventListener('beforeinstallprompt', (e) => {
-    // Empêche l'affichage automatique de la bannière
     e.preventDefault();
-    // Sauvegarde l'événement pour une utilisation ultérieure
     deferredPrompt = e;
-    // Affiche le bouton d'installation
     installBtn.style.display = 'inline-block';
   });
 
   installBtn.addEventListener('click', async () => {
     if (deferredPrompt) {
-      // Affiche la boîte de dialogue d'installation
       deferredPrompt.prompt();
-      // Attend la réponse de l'utilisateur
       const result = await deferredPrompt.userChoice;
       if (result.outcome === 'accepted') {
         showToast('Application installée avec succès !');
       } else {
         showToast('Installation annulée.');
       }
-      // Réinitialise l'événement
       deferredPrompt = null;
-      // Cache le bouton après installation
       installBtn.style.display = 'none';
     }
   });
 
-  // Cache le bouton si l'application est déjà installée
   window.addEventListener('appinstalled', () => {
     installBtn.style.display = 'none';
   });
+}
 
-})();
+// Lancer l'initialisation
+init();
+
 </script>
 </body>
 </html>
