@@ -434,13 +434,7 @@
 
   <div class="section-title">Banques</div>
   <div id="bankList"></div>
-  <div id="emptyHint" class="empty-hint d-none">Aucune banque enregistrée. Ajoutez-en une ci-dessous.</div>
-
-  <div class="section-title">Ajouter une banque</div>
-  <div class="add-bank-card">
-    <input type="text" id="newBankName" class="form-control" placeholder="Nom de la banque (ex: FinBank)">
-    <button class="btn btn-wa-teal" id="addBankBtn"><i class="bi bi-plus-lg"></i></button>
-  </div>
+  <div id="emptyHint" class="empty-hint d-none">Aucune banque enregistrée.</div>
 
   <footer class="designer">
     Application conçue par<br>
@@ -545,8 +539,6 @@ const bankListEl = document.getElementById("bankList");
 const emptyHint = document.getElementById("emptyHint");
 const statOk = document.getElementById("statOk");
 const statPending = document.getElementById("statPending");
-const newBankInput = document.getElementById("newBankName");
-const addBankBtn = document.getElementById("addBankBtn");
 const sendBtn = document.getElementById("sendWhatsappBtn");
 const toastZone = document.getElementById("toastZone");
 const statutAgents = document.getElementById("statutAgents");
@@ -763,7 +755,6 @@ function render(){
       </span>
       <span class="bank-name">${escapeHtml(bank)}</span>
       <input type="date" class="bank-date-input" data-bank="${escapeAttr(bank)}" value="${entry.date || ""}" ${entry.checked ? "" : "disabled"}>
-      <button class="remove-bank-btn" data-bank="${escapeAttr(bank)}" title="Supprimer"><i class="bi bi-trash3"></i></button>
     `;
     bankListEl.appendChild(card);
   });
@@ -777,9 +768,6 @@ function render(){
   });
   bankListEl.querySelectorAll(".bank-date-input").forEach(dt => {
     dt.addEventListener("change", onDateChange);
-  });
-  bankListEl.querySelectorAll(".remove-bank-btn").forEach(btn => {
-    btn.addEventListener("click", onRemoveBank);
   });
 }
 
@@ -909,20 +897,6 @@ function onDateChange(e){
   // Pas besoin de rerender, l'input a déjà la valeur
 }
 
-async function onRemoveBank(e){
-  const btn = e.target.closest(".remove-bank-btn");
-  const bank = btn.getAttribute("data-bank");
-  const code = await askSecurityCode(`⚠️ Suppression de la banque "${bank}". Cette action est réservée à l'administrateur. Entrez le code de sécurité.`);
-  if (code === "1984") {
-    if (!confirm(`Supprimer définitivement la banque "${bank}" de la liste ?`)) return;
-    let banks = banksData.filter(b => b !== bank);
-    await writeBanks(banks);
-    // Le listener mettra à jour banksData et render
-  } else {
-    showToast("Code incorrect ou action annulée. Suppression annulée.");
-  }
-}
-
 // ----- GESTION DES OPTIONS (statut, type, désignation) avec sécurité -----
 function areOptionsValid(){
   const statut = statutAgents.value;
@@ -972,31 +946,7 @@ async function handleOptionChange(e) {
   }
 }
 
-// ----- AUTRES ÉVÉNEMENTS (ajout banque, reset, envoi) -----
-addBankBtn.addEventListener("click", async () => {
-  const name = newBankInput.value.trim();
-  if(!name){
-    newBankInput.focus();
-    return;
-  }
-  if(banksData.some(b => b.toLowerCase() === name.toLowerCase())){
-    showToast("Cette banque existe déjà");
-    return;
-  }
-  const newBanks = [...banksData, name];
-  await writeBanks(newBanks);
-  // Le listener mettra à jour
-  newBankInput.value = "";
-  showToast(`"${name}" ajoutée`);
-});
-
-newBankInput.addEventListener("keydown", (e) => {
-  if(e.key === "Enter"){
-    e.preventDefault();
-    addBankBtn.click();
-  }
-});
-
+// ----- AUTRES ÉVÉNEMENTS (reset, envoi) -----
 monthPicker.addEventListener("change", function(){
   render(); // les données sont déjà dans les variables globales
 });
